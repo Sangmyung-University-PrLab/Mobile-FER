@@ -1,18 +1,10 @@
-# rppg_skindetector
+# Mobile-FER
 
-
-Dataset download link(Google Drive)     
-
-https://drive.google.com/drive/folders/1yMZvf-xZD7GJmN4s1BQx04rFPWg9HVe9
+Need Affectnet metadata file download
 
     .
     ├── ...
     ├── DB                  # unzip
-    │   ├── input           # input images
-    │   ├── target          # target masks
-    │   ├── train.txt       # train idxs
-    │   ├── val.txt         # validataion idxs
-    │   └── test.txt        # test idxs
-    └── main.py # SINET training code
-
+    └── train_data.npy # Affectnet metadata
+    └── test_data.npy # Affectnet metadata
 
