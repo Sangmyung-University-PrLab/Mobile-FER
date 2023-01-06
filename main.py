@@ -6,6 +6,7 @@ import os
 os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
 import time
+import shutil
 import json
 import argparse
 import numpy as np
@@ -33,17 +34,18 @@ if __name__ == '__main__':
         config = json.load(fin)
     train_config = config['train_config']
     data_config = config['data_config']
-
     args.optim = train_config["optim"]
     args.lrsch = train_config["lrsch"]
+    model_name = train_config["Model"]
     args.weight_decay = train_config["weight_decay"]
     others= args.weight_decay*0.01
     save_dir = train_config['save_dir']
 
     if not os.path.isdir(train_config['save_dir']):
         os.mkdir(train_config['save_dir'])
-
-    model = models.__dict__["mobile_former_151m"](num_classes=train_config["num_classes"])
+        
+    shutil.copyfile("./config.json", save_dir + "/config.json")
+    model = models.__dict__[model_name](num_classes=train_config["num_classes"])
 
     # print(train_config["num_classes"])
     batch = torch.FloatTensor(1, 3, data_config["w"], data_config["h"])
@@ -103,9 +105,8 @@ if __name__ == '__main__':
     init_lr = train_config["learning_rate"]
 
     if args.lrsch == "multistep":
-        decay1 = train_config["epochs"] // 2
-        decay2 = train_config["epochs"] - train_config["epochs"] // 6
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[decay1, decay2], gamma=0.5)
+        decay = list(range(20, train_config["epochs"], 20))
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=decay, gamma=0.5)
     elif args.lrsch == "step":
         step = train_config["epochs"] // 3
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=step, gamma=0.5)
@@ -127,9 +128,16 @@ if __name__ == '__main__':
     ################################ start Enc train ##########################################
     
     min_loss = 999999
+    lr = init_lr
 
     print("========== Stage 1 TRAINING ===========")
     for epoch in range(start_epoch, train_config["epochs"]):
+
+        print('Train[%d/%d]\t' % (epoch+1, int(train_config["epochs"])) + "Learning rate: " + str(lr))
+        lossTr = train(num_gpu, trainLoader, model, criteria, optimizer, epoch, train_config["epochs"])
+        lossVal, acc, RMSE_valence, RMSE_arousal = validation(num_gpu, valLoader, model, criteria)
+        print('[LossTr]: %.3f [LossVal]: %.3f [ACC]: %.2f [V_RMSE]: %.4f [A_RMSE]: %.4f'   % (lossTr, lossVal, acc, RMSE_valence, RMSE_arousal))
+
         if args.lrsch == "poly":
             scheduler.step(epoch)  ## scheduler 2
         elif args.lrsch == "warmpoly":
@@ -139,16 +147,8 @@ if __name__ == '__main__':
         else:
             scheduler.step()
 
-        lr = 0
         for param_group in optimizer.param_groups:
             lr = param_group['lr']
-        print("Learning rate: " + str(lr))
-
-        # train for one epoch
-        # We consider 1 epoch with all the training data (at different scales)
-        lossTr = train(num_gpu, trainLoader, model, criteria, optimizer, epoch, train_config["epochs"])
-        lossVal, acc, RMSE_valence, RMSE_arousal = validation(num_gpu, valLoader, model, criteria)
-
 
         if num_gpu > 1:
             this_state_dict = model.module.state_dict()
@@ -157,7 +157,7 @@ if __name__ == '__main__':
 
         if lossVal < min_loss and epoch > 0:
             min_loss = lossVal
-            model_file_name = save_dir + f'/checkpoint[Loss]{lossVal:.3f}[Acc]{acc:.2f}[V]{acc:.3f}[A]{acc:.3f}.pth.tar'
+            model_file_name = save_dir + f'/checkpoint_{epoch:03d}[L]{lossVal:.3f}[ACC]{acc:.2f}[V]{RMSE_valence:.3f}[A]{RMSE_arousal:.3f}.pth.tar'
             save_checkpoint({
                 'epoch': epoch, 'arch': str(model),
                 'state_dict': this_state_dict,
@@ -176,7 +176,7 @@ if __name__ == '__main__':
             'optimizer': optimizer.state_dict(),
             'lossTr': lossTr, 'lossVal': lossVal,
             'lr': lr,
-            'Max_name': Max_name, 'Max_val_iou': Max_val_iou
+            'ACC': acc, 'RMSE_valence': RMSE_valence,  'RMSE_arousal': RMSE_arousal
         }, save_dir + '/checkpoint.pth.tar')
 
     print("========== TRAINING FINISHED ===========")

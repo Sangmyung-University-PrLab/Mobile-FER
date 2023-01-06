@@ -1,12 +1,12 @@
 {
     "train_config": {
         "resume": "",
-        "test_params": "./SMU_FER/model_11.pth",
-        "Model": "SINet",
-        "learning_rate": 1e-5,
+        "test_params": "./Efficent_former/checkpoint.pth.tar",
+        "Model": "efficientformer_l3",
+        "learning_rate": 1e-4,
         "num_classes" : 10,
         "epochs": 100,
-        "save_dir": "./SMU_FER",
+        "save_dir": "./Efficient_former",
         "optim" : "Adam",
         "lrsch" : "multistep",
         "weight_decay" : 2e-4
@@ -15,10 +15,10 @@
     "data_config": {
         "classes" : 2,
         "ignore_idx" : 255,
-        "num_work" : 0,
+        "num_work" : 1,
         "w" :224,
         "h" :224,
         "scaleIn" : 4,
-        "batch_size": 64
+        "batch_size": 32
     }
 }
