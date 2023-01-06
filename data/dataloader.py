@@ -56,8 +56,11 @@ def CVdataloader(data_dir, classes, batch_size, scaleIn, w=180, h=320, num_work=
         dataset = np.load("train_data.npy", allow_pickle=True)
         np.random.shuffle(dataset)
 
-        trainset = dataset[:-round(len(dataset)*0.15)]
-        valset = dataset[-round(len(dataset)*0.15):]
+        trainset = dataset[:-round(len(dataset)*0.05)]
+        valset = dataset[-round(len(dataset)*0.05):]
+
+        # trainset = dataset[:128]
+        # valset = dataset[:128]
         print(" Load Affectnet train dataset")
         trainLoader = torch.utils.data.DataLoader(
             myDataLoader.CVDataset(trainset, transform=train_transform, data_dir=data_dir),

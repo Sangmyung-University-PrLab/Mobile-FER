@@ -34,7 +34,7 @@ if __name__ == '__main__':
         config = json.load(fin)
     train_config = config['train_config']
     data_config = config['data_config']
-
+    model_name = train_config["Model"]
     args.optim = train_config["optim"]
     args.lrsch = train_config["lrsch"]
     args.weight_decay = train_config["weight_decay"]
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     if not os.path.isdir(train_config['save_dir']):
         os.mkdir(train_config['save_dir'])
 
-    model = models.__dict__["mobile_former_151m"](num_classes=train_config["num_classes"])
+    model = models.__dict__[model_name](num_classes=train_config["num_classes"])
 
     # print(train_config["num_classes"])
     batch = torch.FloatTensor(1, 3, data_config["w"], data_config["h"])
@@ -61,9 +61,17 @@ if __name__ == '__main__':
 
     if train_config["test_params"]:
         if os.path.isfile(train_config["test_params"]):
-            model.load_state_dict(torch.load(train_config["test_params"]))
+            checkpoint = torch.load(train_config["test_params"])
+            start_epoch = checkpoint['epoch']
+            lr = checkpoint['lr']
+            acc =  checkpoint['ACC']
+            RMSE_valence =  checkpoint['RMSE_valence']
+            RMSE_arousal =  checkpoint['RMSE_arousal']
+            model.load_state_dict(checkpoint['state_dict'])
+            print("=> loaded checkpoint '{}' (epoch {})".format(train_config["test_params"], checkpoint['epoch']))
+            print(f'/Epoch: {start_epoch} Accuracy: {acc:.2f} Valence: {RMSE_valence:.3f} Arousal: {RMSE_arousal:.3f}')
         else:
-            print("=> no checkpoint found at '{}'".format(train_config["test_params"]))
+            print("=> no checkpoint found at '{}'".format(train_config["resume"]))
 
     use_cuda = torch.cuda.is_available()
     num_gpu = torch.cuda.device_count()

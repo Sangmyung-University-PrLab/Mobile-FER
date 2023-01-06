@@ -41,3 +41,4 @@ class CVDataset(torch.utils.data.Dataset):
         return (image, label, distil)
 
 
+        return (image, label, distil)

@@ -8,6 +8,12 @@ import numpy as np
 from etc.lovasz_losses import iou_binary, calcF1
 import cv2
 import datetime
+from tqdm import tqdm
+
+def mse_loss(pred, target):
+    loss_func = nn.MSELoss()
+    loss = loss_func(pred, target)
+    return loss
 
 def teacher_bound(num_gpu, criterion, expression, valence, arousal, label, distill):
     if num_gpu > 0:
@@ -15,19 +21,19 @@ def teacher_bound(num_gpu, criterion, expression, valence, arousal, label, disti
         valence_loss = mse_loss(valence, label[:,1])
         arousal_loss = mse_loss(arousal, label[:,2])
 
-        kd_loss = criterion(expression, torch.argmax(distill[:,:1], dim=1).type(torch.LongTensor).cuda())
-        kd_valence_loss = mse_loss(valence, distill[:,1])
-        kd_arousal_loss = mse_loss(arousal, distill[:,2])
+        kd_loss = criterion(expression, torch.argmax(distill[:,:-2], dim=1).type(torch.LongTensor).cuda())
+        kd_valence_loss = mse_loss(valence, distill[:,-2])
+        kd_arousal_loss = mse_loss(arousal, distill[:,-1])
     else:
         loss = criterion(expression, label[:,0].type(torch.LongTensor))
         valence_loss = mse_loss(valence, label[:,1])
         arousal_loss = mse_loss(arousal, label[:,2])
 
-        kd_loss = criterion(expression, distill[:,:1])
-        kd_valence_loss = mse_loss(valence, distill[:,1])
-        kd_arousal_loss = mse_loss(arousal, distill[:,2])
+        kd_loss = criterion(expression, distill[:,:-2])
+        kd_valence_loss = mse_loss(valence, distill[:,-2])
+        kd_arousal_loss = mse_loss(arousal, distill[:,-1])
 
-    if valence_loss + 0.5 > mse_loss(distill[:, 1], label[:, 1]):
+    if valence_loss + 0.5 > mse_loss(distill[:,-2], label[:, 1]) or arousal_loss + 0.5 > mse_loss(distill[:,-1], label[:, 2]):
         loss = 0.7 * (loss + 1.7 * valence_loss + 1.7 * arousal_loss) + \
             0.3 * (kd_loss + kd_valence_loss + kd_arousal_loss)
     else:
@@ -42,25 +48,21 @@ def kd_loss(num_gpu, criterion, expression, valence, arousal, label, distill):
         valence_loss = mse_loss(valence, label[:,1])
         arousal_loss = mse_loss(arousal, label[:,2])
 
-        kd_loss = criterion(expression, torch.argmax(distill[:,:1], dim=1).type(torch.LongTensor).cuda())
-        kd_valence_loss = mse_loss(valence, distill[:,1])
-        kd_arousal_loss = mse_loss(arousal, distill[:,2])
+        kd_loss = criterion(expression, torch.argmax(distill[:,:-2], dim=1).type(torch.LongTensor).cuda())
+        kd_valence_loss = mse_loss(valence, distill[:,-2])
+        kd_arousal_loss = mse_loss(arousal, distill[:,-1])
     else:
         loss = criterion(expression, label[:,0].type(torch.LongTensor))
         valence_loss = mse_loss(valence, label[:,1])
         arousal_loss = mse_loss(arousal, label[:,2])
 
-        kd_loss = criterion(expression, distill[:,:1])
-        kd_valence_loss = mse_loss(valence, distill[:,1])
-        kd_arousal_loss = mse_loss(arousal, distill[:,2])
+        kd_loss = criterion(expression, distill[:,:-2])
+        kd_valence_loss = mse_loss(valence, distill[:,-2])
+        kd_arousal_loss = mse_loss(arousal, distill[:,-1])
 
     loss = 0.7 * (loss + valence_loss + arousal_loss) + 0.3 * (kd_loss + kd_valence_loss + kd_arousal_loss)
     return loss
     
-def mse_loss(pred, target):
-    loss_func = nn.MSELoss()
-    loss = loss_func(pred, target)
-    return loss
 
 def validation(num_gpu, val_loader, model, criterion):
     '''
@@ -102,29 +104,27 @@ def validation(num_gpu, val_loader, model, criterion):
             valence = output["valence"]
             arousal = output["arousal"]
 
-        loss = kd_loss(num_gpu, criterion, expression, valence, arousal, label, distill)
+            loss = teacher_bound(num_gpu, criterion, expression, valence, arousal, label, distill)
+            epoch_loss.append(loss.item())
+            
+            _, expression = torch.max(output["expression"], 1)
+            total += exp_label.size(0)
+            correct += (expression == exp_label).sum().item()
+            
+            valence = np.squeeze(valence.cpu().numpy())
+            arousal = np.squeeze(arousal.cpu().numpy())
+            
+            va_label = np.squeeze(va_label.cpu().numpy())
+            ar_label = np.squeeze(ar_label.cpu().numpy())
 
-        epoch_loss.append(loss.item())
-        
-        _, expression = torch.max(output["expression"], 1)
-        total += exp_label.size(0)
-        correct += (expression == exp_label).sum().item()
-        valence = np.squeeze(valence.cpu().numpy())
-        arousal = np.squeeze(arousal.cpu().numpy())
-        va_label = np.squeeze(va_label.cpu().numpy())
-        ar_label = np.squeeze(ar_label.cpu().numpy())
-
-        valence_se += np.sum((valence - va_label)**2)
-        arousal_se += np.sum((arousal - ar_label)**2)
+            valence_se += np.sum((valence - va_label)**2)
+            arousal_se += np.sum((arousal - ar_label)**2)
 
     average_epoch_loss_val = sum(epoch_loss) / len(epoch_loss)
-
 
     acc = 100 * correct / total
     RMSE_valence = np.sqrt(valence_se/total)
     RMSE_arousal = np.sqrt(arousal_se/total)
-
-    print('[Loss]: %.3f [ACC]: %.2f [V_RMSE]: %.4f [A_RMSE]: %.4f'   % (average_epoch_loss_val, acc, RMSE_valence, RMSE_arousal))
 
     return average_epoch_loss_val, acc, RMSE_valence, RMSE_arousal
 
@@ -141,10 +141,7 @@ def train(num_gpu, train_loader, model, criterion, optimizer, epoch, total_ep):
     # switch to train mode
     model.train()
     epoch_loss = []
-    total_time= 0
-    for i, (input, label, distill) in enumerate(train_loader):
-
-        start_time = time.time()
+    for i, (input, label, distill) in enumerate(tqdm(train_loader)):
 
         if num_gpu > 0:
             input = input.cuda()
@@ -164,23 +161,16 @@ def train(num_gpu, train_loader, model, criterion, optimizer, epoch, total_ep):
         # set the grad to zero
         optimizer.zero_grad()
 
-        loss = kd_loss(num_gpu, criterion, expression, valence, arousal, label, distill)
+        loss = teacher_bound(num_gpu, criterion, expression, valence, arousal, label, distill)
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
         epoch_loss.append(loss.item())
-        time_taken = time.time() - start_time
-        total_time += time_taken
 
     average_epoch_loss_train = sum(epoch_loss) / len(epoch_loss)
     
-    # hours, rem = divmod(total_time, 3600)
-    # minutes, seconds = divmod(rem, 60)
-    # total_time = "{:0>2}:{:0>2}:{:05.2f}".format(int(hours),int(minutes),seconds)
-    print('[%d/%d] loss: %.3f time:%.3f' % (epoch+1, int(total_ep), average_epoch_loss_train, total_time))
-
     return average_epoch_loss_train
 
 
