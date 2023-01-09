@@ -1,6 +1,6 @@
 # Mobile-FER
 
-### Need Affectnet dataset(Mobile-FER.zip) file download
+### Need Affectnet dataset(Mobile-FER.zip 35.46GB) file download
 - Mobile-FER.zip(DB/, balanced_train_data.npy, test_data.npy 포함)
 
 ### Google Drive 
