@@ -7,6 +7,15 @@
 - 다운로드 링크:
 
 
+    .
+    ├── ...
+    ├── DB                  # unzip
+    │   ├── input           # input images
+    │   ├── target          # target masks
+    │   ├── train.txt       # train idxs
+    │   ├── val.txt         # validataion idxs
+    │   └── test.txt        # test idxs
+    └── main.py # SINET training code
 
 
     .
