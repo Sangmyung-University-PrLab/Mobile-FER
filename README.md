@@ -1,12 +1,10 @@
 # Mobile-FER
 
 ### Need Affectnet dataset(Mobile-FER.zip) file download
+- Mobile-FER.zip(DB/, balanced_train_data.npy, test_data.npy 포함)
 
-
-### Google Drive(링크: ) Mobile-FER.zip(DB/, balanced_train_data.npy, test_data.npy 포함)
-링크다운 안되면 패턴인식연구실 
-
-
+### Google Drive 
+- 링크:
 
     .
     ├── ...
