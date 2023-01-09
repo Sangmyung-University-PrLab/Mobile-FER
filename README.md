@@ -4,7 +4,10 @@
 - Mobile-FER.zip(DB/, balanced_train_data.npy, test_data.npy 포함)
 
 ### Google Drive 
-- 링크:
+- 다운로드 링크:
+
+
+
 
     .
     ├── ...
